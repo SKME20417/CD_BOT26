@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EXL | Capability Development</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════ HEADER -->
+<header>
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
+    </svg>
+  </div>
+  <h1><span class="exl-text">EXL</span> | <span class="cd-text">Capability Development</span></h1>
+  <span class="header-badge">Teams Broadcast</span>
+
+  <div class="sender-selector">
+    <label for="sender-select">Sending as</label>
+    <select id="sender-select" onchange="handleSenderChange()">
+      <option value="Sanjay265646@exlservice.com"     data-name="Sanjay">Sanjay Kumar</option>
+      <option value="Richard253742@exlservice.com"    data-name="Richard">Richard Dayal</option>
+      <option value="Subhraneel198804@exlservice.com" data-name="Subhraneel">Subhraneel Goswami</option>
+      <option value="Gopal85766@exlservice.com"       data-name="Gopal">Gopal Rajvanshi</option>
+    </select>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════ MAIN -->
+<main>
+
+  <!-- ── STEP 1 : Upload ──────────────────────────────────────────────────── -->
+  <div class="card" id="card-upload">
+    <div class="card-title"><span class="step">1</span> Upload Recipients File</div>
+
+    <div class="upload-area" id="upload-area">
+      <input type="file" id="file-input" accept=".xlsx" />
+      <div class="upload-icon">📂</div>
+      <p><strong>Click to browse</strong> or drag &amp; drop your Excel file here</p>
+      <p>Accepts <strong>.xlsx</strong> files with a <strong>UPN</strong> column</p>
+    </div>
+
+    <div class="file-info" id="file-info">
+      <span>📄</span>
+      <span class="file-name" id="file-name-label">—</span>
+      <span class="recipient-count" id="recipient-count-label">— recipients</span>
+      <span class="badge" id="loaded-badge">Loaded</span>
+    </div>
+  </div>
+
+  <!-- ── STEP 2 : Write message ────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title"><span class="step">2</span> Write Your Message</div>
+
+    <textarea
+      id="raw-message"
+      placeholder="Upload a recipients file first — a template will appear here automatically."
+    ></textarea>
+
+    <div id="name-hint" style="display:none;font-size:0.78rem;color:#0078d4;margin-top:6px;padding:6px 10px;background:#eaf3fb;border-radius:6px;border-left:3px solid #0078d4;"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-format" onclick="handleFormat()">
+        <span>✨</span> Format &amp; Preview
+      </button>
+      <span id="model-status-label" style="font-size:0.78rem;color:#605e5c;align-self:center;"></span>
+    </div>
+  </div>
+
+  <!-- ── STEP 3 : Formatted preview (hidden until formatted) ──────────────── -->
+  <div class="card hidden" id="card-preview">
+    <div class="card-title" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span><span class="step">3</span> Review &amp; Edit Formatted Message</span>
+      <span id="slm-badge" class="slm-badge used">⚡ Phi-3 formatted</span>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="editor-wrapper">
+      <div class="editor-toolbar">
+        <button class="toolbar-btn" onclick="fmt('bold')"        title="Bold"><b>B</b></button>
+        <button class="toolbar-btn" onclick="fmt('italic')"      title="Italic"><i>I</i></button>
+        <button class="toolbar-btn" onclick="fmt('underline')"   title="Underline"><u>U</u></button>
+        <div class="toolbar-sep"></div>
+        <button class="toolbar-btn" onclick="fmtLink()"          title="Insert Link">🔗</button>
+        <button class="toolbar-btn" onclick="fmt('insertUnorderedList')" title="Bullet list">• ≡</button>
+        <button class="toolbar-btn" onclick="fmt('insertOrderedList')"   title="Numbered list">1. ≡</button>
+        <div class="toolbar-sep"></div>
+        <button class="toolbar-btn" onclick="fmt('removeFormat')" title="Clear formatting">✖</button>
+      </div>
+      <div
+        class="editor-body"
+        id="editor"
+        contenteditable="true"
+        data-placeholder="Formatted message will appear here..."
+      ></div>
+    </div>
+
+    <div id="preview-warn" class="alert alert-warn hidden"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-success" id="btn-send" onclick="handleSend()">
+        <span>🚀</span> Send to All Recipients
+      </button>
+      <button class="btn btn-outline" onclick="handleReformat()">
+        ↺ Re-format
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STEP 4 : Live broadcast log ──────────────────────────────────────── -->
+  <div class="card" id="log-section">
+    <div class="card-title"><span class="step">4</span> Broadcast Log</div>
+
+    <div class="progress-label">
+      <span id="prog-label">Preparing…</span>
+      <span id="prog-fraction">0 / 0</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="log-panel" id="log-panel"></div>
+  </div>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════════ AUTH MODAL -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <h2>🔐 Microsoft Authentication Required</h2>
+    <p>Open the link below in your browser and enter the code to continue.</p>
+
+    <div class="auth-code-box">
+      <div class="auth-code" id="auth-code-display">——————</div>
+      <div class="auth-url">
+        <a id="auth-url-link" href="#" target="_blank" rel="noopener"></a>
+      </div>
+    </div>
+
+    <div class="auth-spinner">
+      <div class="spinner"></div>
+      <span id="auth-status-text">Waiting for authentication…</span>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
