@@ -1,0 +1,3 @@
+AI formatting unavailable: Error code: 403 - {'error': {'code': '403', 'message': 'A Virtual Network is configured for this resource. Please use the correct endpoint for making requests. Check https://aka.ms/cogsvc-vnet for more details.'}}. Showing original message.
+
+ AI unavailable — original shown
