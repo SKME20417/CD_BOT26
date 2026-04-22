@@ -1,0 +1,160 @@
+i am using this code in llm.py in company's laptop but getting this error : <b>Hi {name},</b><br><br>invited<br><br>Regards,<br>Sanjay,   
+
+The cod is :
+"""
+llm.py — Azure OpenAI message formatter via Entra ID.
+
+Credential resolution order:
+  1. If AZURE_CLIENT_ID + AZURE_TENANT_ID + AZURE_CLIENT_SECRET are set
+     (in environment OR .env file) → use ClientSecretCredential explicitly.
+  2. Otherwise fall back to DefaultAzureCredential which handles:
+       - Azure Managed Identity (when deployed on Azure)
+       - Azure CLI  (`az login`)
+       - VS Code / IntelliJ signed-in account
+"""
+
+import logging
+import os
+import html
+
+from azure.identity import ClientSecretCredential, DefaultAzureCredential, get_bearer_token_provider
+from openai import AzureOpenAI
+
+from config import get_settings
+
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
+_SYSTEM_PROMPT = (
+    "You are a professional corporate communication assistant. "
+    "Your job is to take a raw, informal message and reformat it into a clear, "
+    "professional, and well-structured Microsoft Teams message.\n\n"
+    "Rules:\n"
+    "- Keep the original meaning and intent intact.\n"
+    "- Use a proper greeting and closing when appropriate.\n"
+    "- Use bullet points or numbered lists where helpful.\n"
+    "- Keep the tone professional but friendly.\n"
+    "- Do NOT add any information that was not in the original message.\n"
+    "- Output ONLY the formatted message — no explanations, no preamble.\n"
+    "- Use HTML suitable for Microsoft Teams: <b>, <i>, <u>, <br>, <ul>, <li>, <a href>.\n"
+    "- IMPORTANT: Return real HTML tags (e.g., <b>text</b>), NOT escaped entities like &lt;b&gt;."
+)
+
+_USER_TEMPLATE = (
+    "Please format the following message for a professional Microsoft Teams broadcast:\n\n"
+    "---\n{raw}\n---\n\n"
+    "Return only the formatted message."
+)
+
+# ── Credential factory ────────────────────────────────────────────────────────
+def _build_credential():
+    """
+    Return an Azure credential object.
+
+    Prefers ClientSecretCredential when service-principal vars are available
+    (works with both shell env vars AND pydantic-settings .env file values).
+    Falls back to DefaultAzureCredential for managed identity / az login.
+    """
+    client_id = settings.azure_client_id or os.environ.get("AZURE_CLIENT_ID", "")
+    tenant_id = settings.azure_tenant_id or os.environ.get("AZURE_TENANT_ID", "")
+    client_secret = settings.azure_client_secret or os.environ.get("AZURE_CLIENT_SECRET", "")
+
+    if client_id and tenant_id and client_secret:
+        logger.info("Azure OpenAI: using ClientSecretCredential (service principal)")
+        return ClientSecretCredential(
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+
+    logger.info("Azure OpenAI: using DefaultAzureCredential (managed identity / az login)")
+    return DefaultAzureCredential()
+
+
+# ── Lazy client ───────────────────────────────────────────────────────────────
+_client: AzureOpenAI | None = None
+
+
+def _get_client() -> AzureOpenAI:
+    global _client
+    if _client is None:
+        credential = _build_credential()
+        token_provider = get_bearer_token_provider(
+            credential,
+            "https://cognitiveservices.azure.com/.default",
+        )
+        _client = AzureOpenAI(
+            api_version=settings.azure_openai_api_version,
+            azure_endpoint=settings.azure_openai_endpoint,
+            azure_ad_token_provider=token_provider,
+        )
+    return _client
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+def is_model_available() -> bool:
+    """Return True if the Azure OpenAI client initialises without error."""
+    try:
+        _get_client()
+        return True
+    except Exception as exc:
+        logger.warning(f"Azure OpenAI client unavailable: {exc}")
+        return False
+
+
+def format_message(raw_text: str) -> dict:
+    """
+    Format raw_text using Azure OpenAI.
+    Returns:
+        {"formatted": str, "model_used": bool, "warning": str | None}
+
+    Notes:
+    - GPT-5-mini may reject non-default sampling params like temperature; we do not pass temperature. [1](https://community.openai.com/t/gpt-5-models-temperature/1337957)[2](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning)
+    - Some deployments require max_completion_tokens instead of max_tokens. We try max_completion_tokens first and fallback if needed.
+    - Model sometimes returns HTML escaped as entities (&lt;b&gt;). We unescape so Teams renders real HTML.
+    """
+    try:
+        client = _get_client()
+
+        base_kwargs = dict(
+            model=settings.azure_openai_deployment,  # Azure DEPLOYMENT NAME
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": _USER_TEMPLATE.format(raw=raw_text)},
+            ],
+        )
+
+        # 1) Try with max_completion_tokens (your GPT-5-mini deployment requires this)
+        try:
+            response = client.chat.completions.create(
+                **base_kwargs,
+                max_completion_tokens=2048,
+            )
+        except Exception as e:
+            msg = str(e)
+
+            # 2) Fallback for environments/models expecting max_tokens instead
+            if "max_completion_tokens" in msg and "not supported" in msg:
+                response = client.chat.completions.create(
+                    **base_kwargs,
+                    max_tokens=2048,
+                )
+            else:
+                raise
+
+        content = response.choices[0].message.content or ""
+
+        # Convert escaped HTML entities to actual HTML tags for Teams rendering
+        # Example: "&lt;b&gt;Hi&lt;/b&gt;" -> "<b>Hi</b>"
+        formatted = html.unescape(content).strip() if content else raw_text
+
+        return {"formatted": formatted, "model_used": True, "warning": None}
+
+    except Exception as exc:
+        logger.error(f"Azure OpenAI format_message error: {exc}")
+        return {
+            "formatted": raw_text,
+            "model_used": False,
+            "warning": f"AI formatting unavailable: {exc}. Showing original message.",
+        }

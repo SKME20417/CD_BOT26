@@ -1,0 +1,16 @@
+(base) C:\Users\Sanjay265646\OneDrive - EXLService.com (I) Pvt. Ltd\Desktop\CD_Communication_Tool26\CD_Communication_Tool>git push azure main
+Enumerating objects: 22, done.
+Counting objects: 100% (22/22), done.
+Delta compression using up to 14 threads
+Compressing objects: 100% (21/21), done.
+Writing objects: 100% (22/22), 27.94 KiB | 6.99 MiB/s, done.
+Total 22 (delta 0), reused 22 (delta 0), pack-reused 0 (from 0)
+remote: Deploy Async
+remote: The current deployment branch is 'master', but nothing has been pushed to it
+remote: Error - Changes committed to remote repository but deployment to website failed.
+remote: Unhandled exception. System.NullReferenceException: Object reference not set to an instance of an object.
+remote:    at Kudu.Console.Program.PerformDeploy(String appRoot, String wapTargets, String deployer, String lockPath, IEnvironment env, IDeploymentSettingsManager settingsManager, TraceLevel level, ITracer tracer, ITraceFactory traceFactory, IOperationLock deploymentLock, IBuildService buildService) in /tmp/KuduLite/Kudu.Console/Program.cs:line 214
+remote:    at Kudu.Console.Program.Main(String[] args) in /tmp/KuduLite/Kudu.Console/Program.cs:line 95
+remote: Aborted (core dumped)
+To https://capabilitydevapp-ekfab3fbdygjbvg7.scm.northcentralus-01.azurewebsites.net:443/capabilitydevapp.git
+ * [new branch]      main -> main
